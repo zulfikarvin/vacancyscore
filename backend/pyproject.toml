@@ -34,9 +34,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
-[tool.vercel]
-entrypoint = "index:app"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # So `pytest` works the same as `python -m pytest`: both `app` and `tests` are
