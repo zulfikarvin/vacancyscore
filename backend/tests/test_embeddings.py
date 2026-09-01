@@ -1,8 +1,6 @@
 """Ranking maths and CV parsing.
 
-Deliberately model-free: `cosine_similarity`, `to_percentage` and
-`rank_by_similarity` are the parts that decide which CV wins, so they are tested
-directly rather than through a 130MB download.
+The ranking logic is model-free and the Gemini HTTP client is mocked.
 """
 
 from __future__ import annotations
@@ -10,6 +8,7 @@ from __future__ import annotations
 import pytest
 
 from app.embeddings import (
+    GeminiEmbedder,
     HashingEmbedder,
     cosine_similarity,
     rank_by_similarity,
@@ -56,9 +55,9 @@ def test_degenerate_inputs_are_zero_not_an_exception(a, b):
 
 def test_percentages_are_clamped_to_the_readable_band():
     assert to_percentage(-0.5) == 0.0
-    assert to_percentage(0.40) == 0.0
-    assert to_percentage(0.625) == 50.0
-    assert to_percentage(0.85) == 100.0
+    assert to_percentage(0.20) == 0.0
+    assert to_percentage(0.50) == 50.0
+    assert to_percentage(0.80) == 100.0
     assert to_percentage(1.0) == 100.0
 
 
@@ -93,7 +92,7 @@ def test_ranking_survives_candidates_that_all_clamp_to_zero_percent():
     CV was uploaded last.
     """
     query = [1.0, 0.0]
-    closer = [0.35, 0.94]  # cosine ~0.35
+    closer = [0.15, 0.99]  # cosine ~0.15
     further = [0.10, 1.0]  # cosine ~0.10
 
     ranked = rank_by_similarity(query, [(1, further), (2, closer)])
@@ -123,6 +122,30 @@ def test_hashing_embedder_separates_unrelated_text():
     pastry = embedder.embed_documents(["croissant lamination butter pastry"])[0]
 
     assert cosine_similarity(backend, pastry) < 0.2
+
+
+def test_gemini_embedder_uses_similarity_task_and_requested_dimensions(monkeypatch):
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"embedding": {"values": [0.1, 0.2, 0.3]}}
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr("app.embeddings.httpx.post", fake_post)
+    vector = GeminiEmbedder("gemini-embedding-001", 3, "secret").embed_query("CV")
+
+    assert vector == [0.1, 0.2, 0.3]
+    assert captured["headers"] == {"x-goog-api-key": "secret"}
+    assert captured["json"]["taskType"] == "SEMANTIC_SIMILARITY"
+    assert captured["json"]["outputDimensionality"] == 3
 
 
 # --------------------------------------------------------------------------

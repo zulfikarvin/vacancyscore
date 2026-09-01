@@ -37,6 +37,7 @@ from sqlalchemy.orm import (
     relationship,
     sessionmaker,
 )
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
@@ -84,8 +85,11 @@ class CV(Base):
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     char_count: Mapped[int] = mapped_column(Integer, default=0)
     #: Embedding vector, stored as a JSON array of floats. About 10 CVs per user,
-    #: so cosine similarity in numpy beats a vector DB (see README > Decisions).
+    #: so an in-process cosine calculation beats a vector DB.
     embedding_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Lets the application safely re-embed records when the provider, model,
+    # or vector dimensions change.
+    embedding_model: Mapped[str | None] = mapped_column(String(160), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped[User] = relationship(back_populates="cvs")
@@ -146,7 +150,15 @@ def _engine_kwargs(url: str) -> dict[str, Any]:
         return {"connect_args": {"check_same_thread": False}}
     # Supavisor transaction mode (port 6543) does not support prepared
     # statements. `None` disables psycopg's automatic preparation.
-    return {"pool_pre_ping": True, "connect_args": {"prepare_threshold": None}}
+    kwargs: dict[str, Any] = {"connect_args": {"prepare_threshold": None}}
+    if settings.vercel:
+        # A serverless instance is short-lived. Supabase's transaction pooler
+        # owns connection reuse, so a process-local SQLAlchemy pool only wastes
+        # scarce database connections.
+        kwargs["poolclass"] = NullPool
+    else:
+        kwargs["pool_pre_ping"] = True
+    return kwargs
 
 
 database_url = _database_url(settings.database_url)
@@ -167,6 +179,10 @@ def init_db() -> None:
             connection.exec_driver_sql(f"ALTER TABLE cvs ADD COLUMN file_data {binary_type}")
         if "content_type" not in columns:
             connection.exec_driver_sql("ALTER TABLE cvs ADD COLUMN content_type VARCHAR(120)")
+        if "embedding_model" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE cvs ADD COLUMN embedding_model VARCHAR(160)"
+            )
 
         # Persist the current history naming convention for rows saved by older
         # versions. This is idempotent, so it is safe on every application boot.
@@ -263,6 +279,7 @@ def create_cv(
     filename: str,
     content_text: str,
     embedding: list[float],
+    embedding_model: str | None = None,
     file_data: bytes | None = None,
     content_type: str | None = None,
 ) -> CV:
@@ -275,11 +292,23 @@ def create_cv(
         content_type=content_type,
         char_count=len(content_text),
         embedding_json=json.dumps([round(float(x), 6) for x in embedding]),
+        embedding_model=embedding_model,
     )
     session.add(cv)
     session.commit()
     session.refresh(cv)
     return cv
+
+
+def update_cv_embedding(
+    session: Session,
+    cv: CV,
+    embedding: list[float],
+    embedding_model: str,
+) -> None:
+    cv.embedding_json = json.dumps([round(float(x), 6) for x in embedding])
+    cv.embedding_model = embedding_model
+    session.add(cv)
 
 
 def delete_cv(session: Session, user_id: int, cv_id: int) -> bool:
