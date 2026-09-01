@@ -26,7 +26,7 @@ from app import auth, limits, parsing, store
 from app.auth import current_user, get_db
 from app.chains import CVCandidate, normalize_history_title, run_analysis
 from app.config import settings
-from app.embeddings import embed_cv, get_embedder
+from app.embeddings import embed_cv, embedding_version
 from app.errors import AppError
 from app.pdf_report import build_analysis_pdf
 from app.schemas import (
@@ -52,11 +52,10 @@ from app.schemas import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    store.init_db()
-    # Load the embedding model at boot, not inside the first upload request.
-    # It is baked into the image, so this is a few seconds once rather than a
-    # request that looks hung to whoever happens to upload first after a deploy.
-    get_embedder()
+    # Schema creation belongs to setup, not every serverless cold start. Local
+    # development still initializes automatically for convenience.
+    if not settings.vercel:
+        store.init_db()
     yield
 
 
@@ -196,6 +195,7 @@ async def upload_cv(
         filename=file.filename or "cv",
         content_text=text,
         embedding=embed_cv(text),
+        embedding_model=embedding_version(),
         file_data=data,
         content_type=file.content_type,
     )
@@ -276,6 +276,20 @@ def analyze(
     limits.check_analyze_rate_limit(db, user.id)
 
     cvs = store.list_cvs(db, user.id)
+    current_embedding = embedding_version()
+    embeddings_changed = False
+    for cv in cvs:
+        if (
+            cv.embedding_model != current_embedding
+            or len(cv.embedding) != settings.embedding_dimensions
+        ):
+            store.update_cv_embedding(
+                db, cv, embed_cv(cv.content_text), current_embedding
+            )
+            embeddings_changed = True
+    if embeddings_changed:
+        db.commit()
+
     outcome = run_analysis(
         vacancy_text,
         [

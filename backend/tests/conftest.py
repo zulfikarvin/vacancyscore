@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import uuid
 
 _TMP_DB = os.path.join(tempfile.mkdtemp(prefix="vacancyscore-tests-"), "test.db")
 
@@ -28,6 +29,7 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import store  # noqa: E402
+from app import auth  # noqa: E402
 from app.main import app  # noqa: E402
 
 SAMPLE_CV = (
@@ -54,6 +56,62 @@ def clean_database():
     store.Base.metadata.create_all(store.engine)
     yield
     store.Base.metadata.drop_all(store.engine)
+
+
+class _SupabaseResponse:
+    def __init__(self, status_code: int, payload: dict):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self) -> dict:
+        return self._payload
+
+
+@pytest.fixture(autouse=True)
+def fake_supabase_auth(monkeypatch):
+    """Keep route tests offline and away from the real Supabase project."""
+    users: dict[str, dict] = {}
+    tokens: dict[str, dict] = {}
+
+    def session_for(user: dict) -> dict:
+        access_token = f"access-{user['id']}"
+        refresh_token = f"refresh-{user['id']}"
+        tokens[access_token] = user
+        tokens[refresh_token] = user
+        return {
+            "user": user,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": 3600,
+        }
+
+    def fake_post(url: str, *, headers: dict, json: dict, timeout: int):
+        if url.endswith("/signup"):
+            email = json["email"].lower()
+            if email in users:
+                return _SupabaseResponse(400, {"message": "User already registered"})
+            user = {"id": str(uuid.uuid4()), "email": email}
+            users[email] = {"profile": user, "password": json["password"]}
+            return _SupabaseResponse(200, session_for(user))
+        if "grant_type=password" in url:
+            record = users.get(json["email"].lower())
+            if not record or record["password"] != json["password"]:
+                return _SupabaseResponse(400, {"message": "Invalid login credentials"})
+            return _SupabaseResponse(200, session_for(record["profile"]))
+        if "grant_type=refresh_token" in url:
+            user = tokens.get(json["refresh_token"])
+            if not user:
+                return _SupabaseResponse(401, {"message": "Invalid refresh token"})
+            return _SupabaseResponse(200, session_for(user))
+        return _SupabaseResponse(200, {})
+
+    def fake_get(url: str, *, headers: dict, timeout: int):
+        token = headers.get("Authorization", "").removeprefix("Bearer ")
+        user = tokens.get(token)
+        return _SupabaseResponse(200, user) if user else _SupabaseResponse(401, {})
+
+    monkeypatch.setattr(auth.httpx, "post", fake_post)
+    monkeypatch.setattr(auth.httpx, "get", fake_get)
 
 
 @pytest.fixture

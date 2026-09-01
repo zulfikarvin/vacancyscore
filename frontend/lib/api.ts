@@ -1,9 +1,8 @@
 /**
  * The only place in the frontend that knows the backend exists.
  *
- * Base URL always comes from NEXT_PUBLIC_API_URL (Vercel env var); every call
- * sends the session cookie, which is why the backend needs
- * `allow_credentials=True` and an explicit origin allowlist.
+ * Production defaults to the same-origin /api proxy configured in next.config.
+ * This keeps authentication cookies first-party in the browser.
  */
 
 import type {
@@ -17,7 +16,8 @@ import type {
 } from "./types";
 
 const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:8000")
 ).replace(/\/$/, "");
 
 /** A typed backend failure. `code` is exhaustive, so the UI can switch on it. */

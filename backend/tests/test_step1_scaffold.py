@@ -38,15 +38,15 @@ def test_wrong_password_gives_typed_error(client):
     assert response.json()["code"] == "invalid_credentials"
 
 
-def test_password_is_never_stored_in_plaintext(client):
+def test_password_is_not_stored_in_application_database(client):
     from app import store
 
     client.post("/auth/signup", json={"email": "hash@example.com", "password": "correct-horse"})
     with store.session_scope() as session:
         user = store.get_user_by_email(session, "hash@example.com")
         assert user is not None
-        assert "correct-horse" not in user.password_hash
-        assert user.password_hash.startswith("$argon2")
+        assert not hasattr(user, "password")
+        assert not hasattr(user, "password_hash")
 
 
 def test_protected_routes_require_authentication(client):
@@ -132,7 +132,7 @@ def test_users_cannot_read_or_delete_each_others_analyses(make_user):
 
 
 def test_a_forged_session_cookie_is_rejected(client):
-    client.cookies.set("vs_session", "eyJ1aWQiOjF9.forged.signature")
+    client.cookies.set("vs_access_token", "forged-token")
     assert client.get("/auth/me").status_code == 401
 
 

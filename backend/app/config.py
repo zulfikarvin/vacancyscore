@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     #: Step-1 scaffold switch. Also forced on whenever GOOGLE_API_KEY is absent.
     use_mock_llm: bool = True
 
-    # --- Embeddings (local CPU) ---
-    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    # --- Embeddings (Gemini API; no model is downloaded by the server) ---
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = 768
+    embedding_max_chars: int = 7_000
     next_public_supabase_url: str = ""
     next_public_supabase_publishable_key: str = ""
 
@@ -40,12 +42,15 @@ class Settings(BaseSettings):
     port: int = 8000
     allowed_origins: str = "http://localhost:3000"
     public_app_url: str = "http://localhost:3000"
+    # Vercel provides this automatically in its function runtime.
+    vercel: bool = False
 
     # --- Abuse protection ---
     analyze_daily_limit: int = 10
     max_cvs_per_user: int = 10
     max_vacancy_chars: int = 15_000
-    max_upload_bytes: int = 5 * 1024 * 1024
+    # Keep headroom under Vercel's request-body limit.
+    max_upload_bytes: int = 4 * 1024 * 1024
 
     @property
     def origins(self) -> list[str]:
@@ -57,12 +62,12 @@ class Settings(BaseSettings):
 
     @property
     def cookie_secure(self) -> bool:
-        # Cross-site cookies (Vercel -> Railway) require Secure.
+        # Production cookies are Secure.
         return self.is_production
 
     @property
     def cookie_samesite(self) -> Literal["lax", "none"]:
-        return "none" if self.is_production else "lax"
+        return "lax"
 
     @property
     def llm_enabled(self) -> bool:
