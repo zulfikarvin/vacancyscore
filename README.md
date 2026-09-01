@@ -270,36 +270,3 @@ Split deploy: static frontend on Vercel, container backend on Railway.
 The embedding model is baked into the image, so no volume mount is needed — the
 only persistent state is Postgres.
 
-### Frontend → Vercel
-
-1. Import the repo, **root directory `frontend/`**. The Next.js preset needs no
-   other changes.
-2. Set `NEXT_PUBLIC_API_URL` to the Railway service URL, with no trailing slash.
-3. Redeploy after changing it — it is inlined at build time.
-
-Then add the real Vercel URL to `ALLOWED_ORIGINS` on Railway. The session cookie
-is cross-site in production (`SameSite=None; Secure`), so the origin must match
-exactly and both ends must be HTTPS.
-
-### Keeping the free tier warm (optional)
-
-A sleeping Railway container costs the first request 10–20 seconds. A cron ping
-every 10 minutes to `GET /health` avoids it:
-
-```
-*/10 * * * *  curl -fsS https://<your-backend>.up.railway.app/health > /dev/null
-```
-
-Use any scheduler (cron-job.org, GitHub Actions, Railway cron). `/health` touches
-neither the database nor Gemini, so it costs nothing.
-
----
-
-## Not in v1
-
-- **Email verification.** Signup is deliberately frictionless; nothing is sent to
-  the address, so it is really just a username. Verification is the first thing
-  to add before this is more than a demo.
-- **Password reset**, for the same reason.
-- **OAuth / social login.** Email and password only.
-- **An MCP server.** The logic layer is shaped for it; the wrapper is not written.
