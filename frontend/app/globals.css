@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ------------------------------------------------------------------
+   VacancyScore design tokens.
+
+   Light UI: white cards on an off-white canvas, with exactly one dark
+   hero card carrying the score. #240046 is display type, #7b2cbf is
+   anything you can click.
+   ------------------------------------------------------------------ */
+@theme {
+  --color-primary-dark: #10002b;
+  --color-primary: #240046;
+  --color-secondary: #5a189a;
+  --color-accent: #7b2cbf;
+  --color-accent-light: #9d4edd;
+
+  --color-violet-300: #c77dff;
+  --color-violet-200: #e0aaff;
+  --color-violet-100: #f8f3ff;
+
+  --color-canvas: #fafafa;
+  --color-surface: #ffffff;
+  --color-ink: #10002b;
+  --color-ink-muted: #6b6480;
+  --color-hairline: #ece8f2;
+
+  /* Severity + score bands, muted so they sit inside the purple palette. */
+  --color-danger: #c2384a;
+  --color-danger-soft: #fdf0f1;
+  --color-warn: #a8681a;
+  --color-warn-soft: #fdf5ea;
+  --color-good: #2f7a54;
+  --color-good-soft: #eef7f1;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Shadows tinted with primary-dark rather than neutral black. */
+  --shadow-card: 0 1px 2px rgba(16, 0, 43, 0.04),
+    0 10px 30px -18px rgba(16, 0, 43, 0.18);
+  --shadow-hero: 0 24px 60px -30px rgba(16, 0, 43, 0.55);
+  --shadow-lift: 0 2px 4px rgba(16, 0, 43, 0.05),
+    0 16px 40px -20px rgba(16, 0, 43, 0.28);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-hairline);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-violet-200);
+    color: var(--color-primary-dark);
+  }
+
+  /* Numeric UI (scores, percentages) should never reflow while animating. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* The one gradient in the system: reserved for primary CTAs. */
+  .cta-gradient {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent) 0%,
+      var(--color-accent-light) 100%
+    );
+  }
+}
+
+/* Thin, purple-tinted scrollbars inside the sidebar and long cards. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-violet-200) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background-color: var(--color-violet-200);
+  border-radius: 9999px;
+}
