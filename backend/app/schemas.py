@@ -48,6 +48,13 @@ class GapRow(BaseModel):
     )
 
 
+class TypoFinding(BaseModel):
+    source: Literal["vacancy", "cv"]
+    original: str
+    correction: str
+    context: str = ""
+
+
 class VacancyAnalysis(BaseModel):
     """The full analysis of one CV against one vacancy."""
 
@@ -57,6 +64,7 @@ class VacancyAnalysis(BaseModel):
     matched_keywords: list[MatchedKeyword] = Field(default_factory=list)
     missing_keywords: list[str] = Field(default_factory=list)
     gaps: list[GapRow] = Field(default_factory=list)
+    typos: list[TypoFinding] = Field(default_factory=list)
     tips: list[str] = Field(
         default_factory=list,
         max_length=7,
@@ -163,6 +171,9 @@ class CVScore(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     vacancy_text: str = Field(min_length=40)
+    # Optional for backwards compatibility with older clients. When supplied,
+    # only these user-owned CVs participate in ranking and analysis.
+    cv_ids: list[int] | None = Field(default=None, max_length=10)
 
 
 class AnalysisResult(BaseModel):

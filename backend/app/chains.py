@@ -33,6 +33,7 @@ from app.schemas import (
     GapRow,
     MatchedKeyword,
     SubScores,
+    TypoFinding,
     VacancyAnalysis,
 )
 
@@ -88,6 +89,10 @@ RULES
    single biggest blocker.
 8. fit_label is a short verdict such as "Strong fit", "Decent fit" or "Weak fit",
    consistent with fit_score.
+9. Detect high-confidence spelling mistakes in both the VACANCY and CANDIDATE CV.
+   Put them in typos with the exact original text, correction, source, and short context.
+   Do not flag names, brands, acronyms, technical terms, regional spelling variants,
+   grammar, punctuation, or style. Return an empty list if none are clear.
 
 EXTRACTED REQUIREMENTS
 {requirements}
@@ -556,6 +561,7 @@ def _mock_analysis(cv_label: str = "CV") -> VacancyAnalysis:
                 ),
             ),
         ],
+        typos=[TypoFinding(source="cv", original="PostgreSQl", correction="PostgreSQL", context="Skills section")],
         tips=[
             "Add a Deployment bullet naming Docker and your CI provider to the most recent role.",
             "Quantify the RAG project: corpus size, retrieval latency, and accuracy delta.",

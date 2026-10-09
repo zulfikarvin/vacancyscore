@@ -1,15 +1,14 @@
 import type { NextConfig } from "next";
 
-const backendUrl = process.env.BACKEND_API_URL?.replace(/\/$/, "");
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   async rewrites() {
-    if (!backendUrl) return [];
+    // Production routing is handled by the same-project Python function.
+    if (process.env.NODE_ENV !== "development") return [];
     return [
       {
         source: "/api/:path*",
-        destination: `${backendUrl}/:path*`,
+        destination: "http://127.0.0.1:8000/:path*",
       },
     ];
   },

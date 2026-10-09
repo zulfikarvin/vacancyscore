@@ -7,6 +7,7 @@ Nothing in the app reads `os.environ` directly -- everything goes through
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,7 +15,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
+        env_file=Path(__file__).resolve().parents[1] / ".env",
+        env_file_encoding="utf-8", extra="ignore", case_sensitive=False
     )
 
     # --- LLM ---
