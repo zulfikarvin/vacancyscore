@@ -275,7 +275,17 @@ def analyze(
     limits.check_vacancy_length(vacancy_text)
     limits.check_analyze_rate_limit(db, user.id)
 
-    cvs = store.list_cvs(db, user.id)
+    all_cvs = store.list_cvs(db, user.id)
+    if payload.cv_ids is None:
+        cvs = all_cvs
+    else:
+        selected_ids = set(payload.cv_ids)
+        if not selected_ids:
+            raise AppError('no_cvs', 'Select at least one CV for this analysis.')
+        cvs = [cv for cv in all_cvs if cv.id in selected_ids]
+        if len(cvs) != len(selected_ids):
+            raise AppError('not_found', 'One or more selected CVs do not exist.')
+
     current_embedding = embedding_version()
     embeddings_changed = False
     for cv in cvs:

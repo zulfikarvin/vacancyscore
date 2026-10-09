@@ -1,7 +1,7 @@
 /**
  * The only place in the frontend that knows the backend exists.
  *
- * Production defaults to the same-origin /api proxy configured in next.config.
+ * Requests use the same-origin /api path locally and on Vercel.
  * This keeps authentication cookies first-party in the browser.
  */
 
@@ -15,10 +15,7 @@ import type {
   User,
 } from "./types";
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ??
-  (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:8000")
-).replace(/\/$/, "");
+const BASE_URL = "/api";
 
 /** A typed backend failure. `code` is exhaustive, so the UI can switch on it. */
 export class ApiError extends Error {
@@ -164,8 +161,11 @@ export const api = {
     requestBlob(`/cvs/${id}/file${download ? "?download=true" : ""}`),
 
   // --- analyses ---
-  analyze: (vacancyText: string) =>
-    request<AnalysisResult>("/analyze", json({ vacancy_text: vacancyText })),
+  analyze: (vacancyText: string, cvIds: number[]) =>
+    request<AnalysisResult>(
+      "/analyze",
+      json({ vacancy_text: vacancyText, cv_ids: cvIds }),
+    ),
 
   listAnalyses: () => request<AnalysisListItem[]>("/analyses"),
 

@@ -103,6 +103,38 @@ def test_best_matching_cv_wins(make_user):
     assert body["cv_scores"][0]["similarity"] >= body["cv_scores"][1]["similarity"]
 
 
+def test_analyze_only_considers_selected_cvs(make_user):
+    alice = make_user("alice@example.com")
+    upload_cv(alice, "Backend CV")
+    pastry_cv = upload_cv(
+        alice,
+        "Pastry CV",
+        "Pierre Doe\n\nEXPERIENCE\nHead pastry chef. Laminated doughs, viennoiserie, "
+        "seasonal dessert menus for a 90-cover restaurant.\n\nSKILLS\nBaking, plating, "
+        "kitchen management, food costing, supplier negotiation.\n",
+    ).json()
+
+    response = alice.post(
+        "/analyze",
+        json={"vacancy_text": SAMPLE_VACANCY, "cv_ids": [pastry_cv["id"]]},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["recommended_cv"]["id"] == pastry_cv["id"]
+    assert [score["cv_id"] for score in body["cv_scores"]] == [pastry_cv["id"]]
+
+
+def test_analyze_rejects_an_empty_cv_selection(make_user):
+    alice = make_user("alice@example.com")
+    upload_cv(alice, "Backend CV")
+
+    response = alice.post(
+        "/analyze", json={"vacancy_text": SAMPLE_VACANCY, "cv_ids": []}
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "no_cvs"
+
+
 # --------------------------------------------------------------------------
 # Cross-user isolation -- the failure mode to guard hardest against
 # --------------------------------------------------------------------------

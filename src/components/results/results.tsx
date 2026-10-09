@@ -9,6 +9,7 @@ import { HeroCard } from "@/components/results/hero-card";
 import { KeywordChips } from "@/components/results/keyword-chips";
 import { RecommendedCVCard } from "@/components/results/recommended-cv-card";
 import { TipsList } from "@/components/results/tips-list";
+import { TypoCard } from "@/components/results/typo-card";
 import { VacancyCard } from "@/components/results/vacancy-card";
 import { analysisToMarkdown } from "@/lib/markdown";
 import { ApiError, api } from "@/lib/api";

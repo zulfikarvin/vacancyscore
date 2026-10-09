@@ -38,5 +38,5 @@ packages = ["app"]
 testpaths = ["tests"]
 # So `pytest` works the same as `python -m pytest`: both `app` and `tests` are
 # importable without installing the project.
-pythonpath = ["."]
+pythonpath = [".", ".."]
 filterwarnings = ["ignore::DeprecationWarning"]

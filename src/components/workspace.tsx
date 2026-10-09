@@ -24,6 +24,7 @@ export function Workspace({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
 
   const [vacancyText, setVacancyText] = useState("");
+  const [selectedCVIds, setSelectedCVIds] = useState<number[]>([]);
   const [result, setResult] = useState<AnalysisDetail | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingMode, setLoadingMode] = useState<"analysis" | "history">("analysis");
@@ -35,6 +36,7 @@ export function Workspace({ user }: { user: User }) {
       .then(([loadedCVs, loadedAnalyses]) => {
         if (!active) return;
         setCVs(loadedCVs);
+        setSelectedCVIds(loadedCVs.map((cv) => cv.id));
         setAnalyses(loadedAnalyses);
       })
       .catch(() => undefined)
@@ -61,7 +63,7 @@ export function Workspace({ user }: { user: User }) {
     setError(null);
     setResult(null);
     try {
-      const analysis = await api.analyze(text);
+      const analysis = await api.analyze(text, selectedCVIds);
       setResult({ ...analysis, vacancy_text: text });
       // Refresh history so the new run appears in the sidebar with its title.
       setAnalyses(await api.listAnalyses());
@@ -103,6 +105,7 @@ export function Workspace({ user }: { user: User }) {
 
   async function handleDeleteCV(id: number) {
     setCVs((current) => current.filter((cv) => cv.id !== id));
+    setSelectedCVIds((current) => current.filter((cvId) => cvId !== id));
     await api.deleteCV(id).catch(() => undefined);
   }
 
@@ -113,6 +116,7 @@ export function Workspace({ user }: { user: User }) {
 
   function handleUploaded(cv: CV) {
     setCVs((current) => [cv, ...current]);
+    setSelectedCVIds((current) => [cv.id, ...current]);
   }
 
   function handleNewAnalysis() {
@@ -163,7 +167,9 @@ export function Workspace({ user }: { user: User }) {
               onChange={setVacancyText}
               onAnalyze={handleAnalyze}
               pending={analyzing}
-              hasCVs={cvs.length > 0}
+              cvs={cvs}
+              selectedCVIds={selectedCVIds}
+              onSelectedCVIdsChange={setSelectedCVIds}
               maxChars={MAX_VACANCY_CHARS}
               error={error}
             />

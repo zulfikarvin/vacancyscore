@@ -1,202 +1,156 @@
 # VacancyScore
 
-VacancyScore compares a vacancy with a user's stored CVs, recommends the
-strongest match, explains gaps, and exports the analysis as PDF.
+VacancyScore compares vacancies with stored CVs, explains the match and gaps,
+and exports analysis as PDF.
 
-## Free deployment architecture
+## One Vercel project
 
-The production stack is designed to fit free tiers for a portfolio/demo:
+The repository root is one Next.js project. Vercel builds the UI and the Python
+API together and serves both on the same domain:
 
 ```text
-Browser
-  |
-  v
-Vercel project 1: Next.js frontend
-  |  same-origin /api proxy
-  v
-Vercel project 2: FastAPI Python functions
-  |---- Supabase Auth
-  |---- Supabase Postgres
-  `---- Gemini API (analysis + embeddings)
+Browser -> https://your-app.vercel.app
+           /          Next.js UI
+           /api/*     FastAPI Python function
+                         |-- Supabase Auth and PostgreSQL
+                         `-- Gemini analysis and embeddings
 ```
 
-Both Vercel projects use this same GitHub repository. They are separate projects
-because Vercel gives each project one root directory and one framework/runtime:
-the frontend root is `frontend`, while the backend root is `backend`.
+There is no separate backend Vercel project and no BACKEND_API_URL setting.
 
-The backend does not download a machine-learning model. CV and vacancy vectors
-come from `gemini-embedding-001` through a small HTTP request. This removes
-PyTorch, Sentence Transformers, NumPy, Hugging Face model files, and the
-LangChain community loader package from the deployed function.
-
-This can run at no cost while usage remains within Vercel Hobby, Supabase Free,
-and Gemini API free-tier quotas. Free plans have usage and inactivity limits, so
-this architecture is intended for a portfolio or low-traffic demo.
-
-## Project structure
+## Structure
 
 ```text
+src/
+  app/                   Next.js pages and styles
+  components/            UI components
+  lib/                   Typed API client and shared frontend types
+api/index.py             Vercel Python entrypoint, mounts FastAPI at /api
 backend/
-  app/main.py         FastAPI routes
-  app/auth.py         Supabase Auth and HTTP-only cookies
-  app/chains.py       Gemini/LangChain analysis pipeline
-  app/embeddings.py   Gemini embeddings and cosine ranking
-  app/store.py        Supabase Postgres access through SQLAlchemy
-  app/parsing.py      Lightweight PDF/DOCX extraction
-  app/pdf_report.py   Downloadable analysis report
-  check_database.py   Create/update database tables
-  reembed_cvs.py      Upgrade stored CV vectors
-frontend/
-  app/                Next.js pages
-  components/         User interface
-  lib/api.ts          Typed API client
+  app/                   Backend routes, auth, storage and analysis
+  tests/                 Backend and deployment-entrypoint tests
+  pyproject.toml         Python project and dependency source
+  .env.example           Backend configuration template
+  check_database.py      Database initialization and upgrades
+package.json             Frontend dependencies and root commands
+package-lock.json        Locked frontend dependencies
+requirements.txt         Generated, pinned Python runtime dependencies
+.python-version          Python version for Vercel
+next.config.ts           Local /api proxy to port 8000
+vercel.json              Next.js preset and same-project /api routing
 ```
 
-SQLAlchemy remains because it is the small Python database layer, not a database
-service. Supabase provides PostgreSQL; SQLAlchemy safely maps Python objects and
-queries to that database. It does not add another paid service.
+## Local development
 
-## Run locally
+Requirements: Node.js 20+, Python 3.12, and uv.
 
-Requirements: Python 3.12, Node.js 20+, and
-[uv](https://docs.astral.sh/uv/).
+Run from the repository root:
 
-Backend:
-
-```bash
-cd backend
-cp .env.example .env
-uv venv
-uv pip install -r pyproject.toml
-uv run python check_database.py
-uv run uvicorn app.main:app --reload
-```
-
-Frontend, in a second terminal:
-
-```bash
-cd frontend
-cp .env.example .env.local
+```powershell
 npm install
+# Only on first setup; do not overwrite an existing configured backend/.env:
+Copy-Item backend/.env.example backend/.env
+uv venv backend/.venv --python 3.12
+uv pip install --python backend/.venv/Scripts/python.exe -r requirements.txt pytest
+npm run dev:api
+```
+
+Fill in backend/.env before starting the API. In a second terminal at the root:
+
+```powershell
 npm run dev
 ```
 
-Open `http://localhost:3000`. The frontend automatically uses the backend at
-`http://localhost:8000` during development.
+Open http://localhost:3000. The browser calls /api on port 3000 and Next.js
+proxies to FastAPI on port 8000. The local health URL is
+http://localhost:3000/api/health. Backend configuration is loaded from
+backend/.env regardless of the working directory.
 
-Run checks:
+Your existing backend/.env can continue to be used. Frontend environment files
+are unnecessary for this setup. The old frontend directory may still contain
+ignored local build caches and node_modules; it is no longer application source
+and is excluded from Vercel uploads and the Python function bundle.
 
-```bash
-cd backend
-uv run pytest
+## Deploy to Vercel
 
-cd ../frontend
+1. Push this repository including the root package.json, package-lock.json,
+   requirements.txt, api/, src/, backend/app/, and vercel.json.
+2. Import the repository as **one Vercel project**. If reusing your existing
+   frontend project, change its **Root Directory** from frontend to the
+   repository root (leave the field empty). Select **Next.js** as the framework.
+3. Clear old build/install/output overrides. The defaults are npm install,
+   npm run build, and Next.js's output directory. Use Node.js 22.x or newer.
+4. Add the environment variables below to that one project. Remove any obsolete
+   BACKEND_API_URL or NEXT_PUBLIC_API_URL variables.
+5. Initialize the database once from your local machine using your working
+   backend/.env:
+
+   ```powershell
+   uv run --directory backend --no-sync python check_database.py
+   ```
+
+6. Deploy. Open https://YOUR-APP.vercel.app/api/health and confirm status is ok.
+   The API documentation is at /api/docs.
+7. In Supabase Authentication URL Configuration, set Site URL to your app URL
+   and add https://YOUR-APP.vercel.app/reset-password to Redirect URLs. Keep
+   http://localhost:3000/reset-password for local development.
+8. Test signup/login, CV upload, analysis, PDF download, logout and recovery.
+
+Set these values in Vercel Settings -> Environment Variables:
+
+| Variable | Value |
+| --- | --- |
+| DATABASE_URL | Supabase transaction-pooler URI, with URL-encoded password and sslmode=require |
+| NEXT_PUBLIC_SUPABASE_URL | Supabase project URL |
+| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Supabase publishable/anon key |
+| GOOGLE_API_KEY | Gemini API key |
+| GEMINI_MODEL | Your available structured-analysis model; see backend/.env.example |
+| GEMINI_EXTRACTION_MODEL | Your available extraction model; see backend/.env.example |
+| EMBEDDING_MODEL | gemini-embedding-001 |
+| ENVIRONMENT | production |
+| USE_MOCK_LLM | false |
+| PUBLIC_APP_URL | https://YOUR-APP.vercel.app |
+| ALLOWED_ORIGINS | https://YOUR-APP.vercel.app,http://localhost:3000 |
+
+Vercel provides VERCEL automatically; do not set it locally. Schema changes are
+run through check_database.py, not at serverless cold start. Never use SQLite
+for deployed persistence. Although the Supabase variables retain their old
+NEXT_PUBLIC names, the frontend does not read them; auth is handled by Python.
+
+The Python function has a 300-second maximum duration. Uploads remain limited
+to 4 MB in the backend to fit Vercel request limits. Credentials stay in
+Vercel environment settings, never in version control.
+
+## Checks and dependency updates
+
+```powershell
 npm run build
+npm run lint
+npm run test:backend
 ```
 
-## Environment variables
+After changing backend runtime dependencies, regenerate the root lock file:
 
-Backend variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `GOOGLE_API_KEY` | Gemini analysis and embedding API key |
-| `GEMINI_MODEL` | Main structured-analysis model |
-| `GEMINI_EXTRACTION_MODEL` | Vacancy requirement extraction model |
-| `EMBEDDING_MODEL` | Defaults to `gemini-embedding-001` |
-| `DATABASE_URL` | Supabase transaction-pooler connection string |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (name retained for compatibility) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable/anon key |
-| `ALLOWED_ORIGINS` | Comma-separated trusted frontend URLs |
-| `PUBLIC_APP_URL` | Frontend URL used for password recovery |
-| `ENVIRONMENT` | Set to `production` on Vercel |
-| `USE_MOCK_LLM` | `false` for real Gemini calls; `true` for offline fixtures |
-
-Frontend production variable:
-
-| Variable | Purpose |
-| --- | --- |
-| `BACKEND_API_URL` | Backend Vercel URL, for example `https://vacancyscore-api.vercel.app` |
-
-`BACKEND_API_URL` is server-only. Next.js proxies browser requests from
-`/api/*` to FastAPI, which keeps authentication cookies first-party.
-
-## Deploy both projects to Vercel
-
-Before deployment, initialize the Supabase tables once from your computer:
-
-```bash
-cd backend
-uv run python check_database.py
+```powershell
+uv pip compile backend/pyproject.toml --python-version 3.12 --universal --output-file requirements.txt
 ```
 
-### 1. Deploy the backend
+Vercel installs Python dependencies from requirements.txt. Keep this generated
+file committed together with backend/pyproject.toml. The Python runtime excludes
+frontend packages, build output, tests, local databases and environment files.
 
-1. In Vercel, select **Add New > Project** and import this GitHub repository.
-2. Name it something like `vacancyscore-api`.
-3. Set **Root Directory** to `backend`.
-4. Add all backend variables listed above. Use:
-   - `ENVIRONMENT=production`
-   - `USE_MOCK_LLM=false`
-   - `ALLOWED_ORIGINS=http://localhost:3000` temporarily
-   - `PUBLIC_APP_URL=http://localhost:3000` temporarily
-5. Deploy and copy the generated backend URL.
-6. Open `https://YOUR-BACKEND.vercel.app/health` and confirm the response says
-   `"status":"ok"`.
+## Stored CV migration
 
-Vercel recognizes `app/main.py` as FastAPI; `backend/pyproject.toml` also
-declares `app.main:app` explicitly.
+Older CV vectors are regenerated automatically when needed. To upgrade all
+stored vectors explicitly, run:
 
-### 2. Deploy the frontend
-
-1. In Vercel, create another project from the same GitHub repository.
-2. Name it `vacancyscore`.
-3. Set **Root Directory** to `frontend`.
-4. Add `BACKEND_API_URL=https://YOUR-BACKEND.vercel.app` without a trailing
-   slash.
-5. Deploy and copy the frontend URL.
-
-### 3. Connect the final URLs
-
-Return to the backend project's environment variables and set:
-
-```env
-ALLOWED_ORIGINS=https://YOUR-FRONTEND.vercel.app,http://localhost:3000
-PUBLIC_APP_URL=https://YOUR-FRONTEND.vercel.app
+```powershell
+uv run --directory backend --no-sync python reembed_cvs.py
 ```
 
-Redeploy the backend after changing those values.
+This calls Gemini for each CV when real analysis is enabled.
 
-In Supabase, open **Authentication > URL Configuration**:
+## Deployment references
 
-- Set **Site URL** to `https://YOUR-FRONTEND.vercel.app`.
-- Add `https://YOUR-FRONTEND.vercel.app/reset-password` to Redirect URLs.
-- Keep `http://localhost:3000/reset-password` for local development.
-
-Then test signup, login, CV upload, analysis, PDF download, logout, and password
-recovery from the deployed frontend.
-
-## Existing CV migration
-
-Older CV rows may contain 384-dimensional local Hugging Face vectors. The
-application records the current embedding version and automatically regenerates
-an old vector before the next analysis. To upgrade all rows immediately:
-
-```bash
-cd backend
-uv run python reembed_cvs.py
-```
-
-This command calls Gemini once per stored CV, so run it only after confirming
-`GOOGLE_API_KEY` and `USE_MOCK_LLM=false`.
-
-## Key design choices
-
-- No vector database: each user has at most ten CVs, so direct cosine ranking is
-  simpler and cheaper.
-- No local ML model: Gemini embeddings keep Vercel's Python function small.
-- LangChain stays only for the structured analysis chain; it is not used for
-  parsing or embeddings.
-- Supabase owns authentication and PostgreSQL; Vercel owns application runtime.
-- On Vercel, SQLAlchemy uses no local connection pool because Supabase's
-  transaction pooler already manages connections.
+- [Vercel: Python and JavaScript in one application](https://vercel.com/kb/guide/how-to-use-python-and-javascript-in-the-same-application)
+- [Vercel: Python functions in the api directory](https://vercel.com/docs/functions/runtimes/python/api-directory)

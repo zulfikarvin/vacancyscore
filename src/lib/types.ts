@@ -21,6 +21,13 @@ export interface GapRow {
   suggested_fix: string;
 }
 
+export interface TypoFinding {
+  source: "vacancy" | "cv";
+  original: string;
+  correction: string;
+  context: string;
+}
+
 export interface VacancyAnalysis {
   fit_score: number;
   fit_label: string;
@@ -28,6 +35,7 @@ export interface VacancyAnalysis {
   matched_keywords: MatchedKeyword[];
   missing_keywords: string[];
   gaps: GapRow[];
+  typos: TypoFinding[];
   tips: string[];
 }
 

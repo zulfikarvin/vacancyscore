@@ -18,7 +18,7 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 
-# Local root-level artifacts; application manifests live in frontend/backend
-/package.json
-/package-lock.json
+# Local development artifacts
+*.log
+.vercel/
 /.l

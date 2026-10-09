@@ -1,0 +1,7 @@
+import { SpellCheck2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { TypoFinding } from "@/lib/types";
+
+export function TypoCard({ typos = [] }: { typos?: TypoFinding[] }) {
+  return <Card><CardHeader className="flex-row items-center justify-between"><div className="flex items-center gap-2"><SpellCheck2 className="h-5 w-5 text-accent" /><CardTitle>Possible typos</CardTitle></div><span className="text-xs text-ink-muted">{typos.length} found</span></CardHeader><CardContent>{typos.length === 0 ? <p className="text-sm text-ink-muted">No clear spelling mistakes found in the vacancy or recommended CV.</p> : <div className="divide-y divide-hairline">{typos.map((typo, index) => <div key={`${typo.source}-${typo.original}-${index}`} className="py-3 first:pt-0 last:pb-0"><div className="flex flex-wrap items-center gap-2 text-sm"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium capitalize text-accent">{typo.source}</span><span className="font-medium text-danger line-through">{typo.original}</span><span className="text-ink-muted">→</span><span className="font-semibold text-primary">{typo.correction}</span></div>{typo.context ? <p className="mt-1 text-xs text-ink-muted">{typo.context}</p> : null}</div>)}</div>}</CardContent></Card>;
+}
