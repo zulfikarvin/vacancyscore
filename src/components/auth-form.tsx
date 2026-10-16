@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
 import { ApiError, api } from "@/lib/api";
@@ -105,9 +106,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
                 </Link>
               ) : null}
             </div>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
               required
               minLength={mode === "signup" ? 8 : undefined}
@@ -120,9 +120,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
           {mode === "signup" && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirm">Confirm password</Label>
-              <Input
+              <PasswordInput
                 id="confirm"
-                type="password"
                 autoComplete="new-password"
                 required
                 value={confirm}
